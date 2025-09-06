@@ -184,86 +184,85 @@ export default function App() {
   /* -------- HyperFormula workbook -------- */
 const engine = useMemo(() => {
   const config = { licenseKey: "gpl-v3" };
-  const hf = HyperFormula.buildEmpty(config);
-
+  
+  // Build from sheets data
+  const sheetsData = {};
   sheets.sheets.forEach((s, idx) => {
-    try {
-      const sheetName = s.name || `Sheet${idx + 1}`;
-      
-      // Get or create sheet with proper ID handling
-      let sheetId;
-      if (idx === 0) {
-        // For the first sheet, use the default sheet that already exists
-        hf.renameSheet(0, sheetName);
-        sheetId = 0;
-      } else {
-        // For additional sheets, add them properly
-        sheetId = hf.addSheet(sheetName);
-      }
-      
-      // Set sheet content with proper data formatting
-      const data = s.grid.map((row) => 
-        row.map((cell) => cell.input || "")
-      );
-      
-      hf.setSheetContent(sheetId, data);
+    const sheetName = s.name || `Sheet${idx + 1}`;
+    sheetsData[sheetName] = s.grid.map(row => 
+      row.map(cell => cell.input || "")
+    );
+  });
 
-      // Add named expressions
-      Object.entries(s.names || {}).forEach(([k, ref]) => {
-        try {
-          hf.addNamedExpression(k, ref, sheetId);
-        } catch (error) {
-          console.warn(`Could not add named expression ${k}:`, error);
-        }
-      });
-    } catch (error) {
-      console.error(`Error processing sheet ${idx}:`, error);
-    }
+  const hf = HyperFormula.buildFromSheets(sheetsData, config);
+
+  // Add named expressions
+  sheets.sheets.forEach((s, idx) => {
+    const sheetName = s.name || `Sheet${idx + 1}`;
+    const sheetId = hf.getSheetId(sheetName);
+    Object.entries(s.names || {}).forEach(([k, ref]) => {
+      try {
+        hf.addNamedExpression(k, ref, sheetId);
+      } catch (error) {
+        console.warn(`Could not add named expression ${k}:`, error);
+      }
+    });
   });
 
   return hf;
 }, [sheets]);
 
-  /* -------- Recompute display values for active sheet -------- */
-  useEffect(() => {
-    const id = sheets.activeIndex;
-    const g = active.grid;
-    const nextGrid = g.map((row, r) =>
-      row.map((cell, c) => {
-        let v = engine.getCellValue({ sheet: id, col: c, row: r });
+/* -------- Recompute display values for active sheet -------- */
+useEffect(() => {
+  if (!engine) return;
+
+  const sheetName = active.name || `Sheet${sheets.activeIndex + 1}`;
+  const sheetId = engine.getSheetId(sheetName);
+  
+  if (sheetId === undefined) return;
+
+  const g = active.grid;
+  const nextGrid = g.map((row, r) =>
+    row.map((cell, c) => {
+      let v;
+      try {
+        v = engine.getCellValue({ sheet: sheetId, col: c, row: r });
         if (v && typeof v === "object") {
           if ("type" in v) v = "#ARRAY";
           if ("value" in v) v = "#ERR";
         }
-        const t = cell.fmt.type;
-        const num = Number(v);
-        let display = v;
-        if (t === "number" && Number.isFinite(num)) display = num.toLocaleString();
-        if (t === "currency" && Number.isFinite(num))
-          display = new Intl.NumberFormat(undefined, {
-            style: "currency",
-            currency: "INR",
-          }).format(num);
-        if (t === "percent" && Number.isFinite(num))
-          display = `${(num * 100).toFixed(2)}%`;
-        return { ...cell, value: display };
-      })
-    );
-    
-    setSheets(prevSheets => {
-      const newsheets = {
-        ...prevSheets,
-        sheets: prevSheets.sheets.map((s, i) =>
-          i === prevSheets.activeIndex ? { ...s, grid: nextGrid } : s
-        ),
-      };
-      localStorage.setItem(STORAGE_KEY, serialize(newsheets));
-      return newsheets;
-    });
-  }, [engine, sheets.activeIndex, active.grid]);
-
-  const activeGrid = sheets.sheets[sheets.activeIndex].grid;
-  const selectedCell = activeGrid[selection.r]?.[selection.c] ?? defaultCell();
+      } catch (error) {
+        v = "#ERR";
+      }
+      
+      const t = cell.fmt.type;
+      const num = Number(v);
+      let display = v;
+      
+      if (t === "number" && Number.isFinite(num)) display = num.toLocaleString();
+      if (t === "currency" && Number.isFinite(num))
+        display = new Intl.NumberFormat(undefined, {
+          style: "currency",
+          currency: "INR",
+        }).format(num);
+      if (t === "percent" && Number.isFinite(num))
+        display = `${(num * 100).toFixed(2)}%`;
+        
+      return { ...cell, value: display };
+    })
+  );
+  
+  setSheets(prevSheets => {
+    const newsheets = {
+      ...prevSheets,
+      sheets: prevSheets.sheets.map((s, i) =>
+        i === prevSheets.activeIndex ? { ...s, grid: nextGrid } : s
+      ),
+    };
+    localStorage.setItem(STORAGE_KEY, serialize(newsheets));
+    return newsheets;
+  });
+}, [engine, sheets.activeIndex, active.grid, active.name]);
 
   /* -------- Filtered view of rows -------- */
   const rowsToRender = useMemo(() => {
