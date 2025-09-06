@@ -264,7 +264,7 @@ useEffect(() => {
   });
 }, [engine, sheets.activeIndex, active.grid, active.name]);
 
-  /* -------- Filtered view of rows ---------- */
+  /* -------- Filtered view of rows -------- */
   const rowsToRender = useMemo(() => {
     const f = filters;
     return activeGrid.filter((row) =>
