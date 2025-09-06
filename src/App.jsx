@@ -95,7 +95,7 @@ export default function App() {
   // Named range modal
   const [showNameModal, setShowNameModal] = useState(false);
   const [nameKey, setNameKey] = useState("");
-  the [nameRef, setNameRef] = useState("");
+  const [nameRef, setNameRef] = useState("");
 
   // Validation UI
   const [showValidation, setShowValidation] = useState(false);
