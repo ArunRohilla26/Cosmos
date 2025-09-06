@@ -40,7 +40,9 @@ const colToName = (n) => {
   }
   return s;
 };
+
 const addr = (r, c) => `${colToName(c)}${r + 1}`;
+
 const parseA1 = (a1) => {
   const re = new RegExp("([A-Z]+)(\\d+)", "i");
   const m = a1.match(re);
@@ -58,8 +60,9 @@ const defaultCell = () => ({
   input: "",
   value: "",
   fmt: { bold: false, italic: false, align: "left", type: "text" },
-  validation: null, // {type:'list', values:[...]}
+  validation: null,
 });
+
 const newGrid = (rows = DEFAULT_ROWS, cols = DEFAULT_COLS) =>
   Array.from({ length: rows }, () =>
     Array.from({ length: cols }, () => defaultCell())
@@ -76,7 +79,6 @@ const deserialize = (s) => {
 
 /* ===================== App ===================== */
 export default function App() {
-  // Multiple sheets
   const [sheets, setSheets] = useState(() => {
     const saved = deserialize(localStorage.getItem(STORAGE_KEY));
     if (saved?.sheets && saved?.activeIndex >= 0) return saved;
@@ -85,23 +87,17 @@ export default function App() {
       activeIndex: 0,
     };
   });
-  const active = sheets.sheets[sheets.activeIndex];
 
+  const active = sheets.sheets[sheets.activeIndex];
   const [selection, setSelection] = useState({ r: 0, c: 0 });
   const [editVal, setEditVal] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const inputRef = useRef(null);
-
-  // Named range modal
   const [showNameModal, setShowNameModal] = useState(false);
   const [nameKey, setNameKey] = useState("");
   const [nameRef, setNameRef] = useState("");
-
-  // Validation UI
   const [showValidation, setShowValidation] = useState(false);
   const [valList, setValList] = useState("");
-
-  // Pivot UI
   const [pivot, setPivot] = useState({
     range: "",
     rowCol: 0,
@@ -109,15 +105,12 @@ export default function App() {
     agg: "SUM",
   });
   const [pivotData, setPivotData] = useState(null);
-
-  // Freeze panes toggles
   const [freezeFirstRow, setFreezeFirstRow] = useState(true);
   const [freezeFirstCol, setFreezeFirstCol] = useState(true);
-
-  // Column filters
   const [filters, setFilters] = useState(
     Array.from({ length: DEFAULT_COLS }, () => "")
   );
+
   useEffect(() => {
     const cols = active.grid[0]?.length || DEFAULT_COLS;
     setFilters((prev) =>
@@ -125,10 +118,8 @@ export default function App() {
         ? prev
         : Array.from({ length: cols }, (_, i) => prev[i] ?? "")
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheets.activeIndex, active.grid[0]?.length]);
 
-  // Function wizard
   const [showWizard, setShowWizard] = useState(false);
   const functionCatalog = useMemo(
     () => ({
@@ -192,26 +183,15 @@ export default function App() {
 
   /* -------- HyperFormula workbook -------- */
   const engine = useMemo(() => {
-    const hf = HyperFormula.buildEmpty({ licenseKey: "gpl-v3" });
+    const config = { licenseKey: "gpl-v3" };
+    const hf = HyperFormula.buildEmpty(config);
 
     sheets.sheets.forEach((s, idx) => {
       const sheetName = s.name || `Sheet${idx + 1}`;
-
-      // Find an existing sheet by name, otherwise create one.
-      let id;
-      try {
-        id = hf.getSheetId(sheetName);
-      } catch {
-        id = undefined;
-      }
-      if (typeof id !== "number" || id < 0) {
-        id = hf.addSheet(sheetName); // returns numeric sheetId
-      }
-
+      const id = hf.addSheet(sheetName);
       const data = s.grid.map((row) => row.map((cell) => cell.input ?? ""));
       hf.setSheetContent(id, data);
 
-      // Named expressions scoped to the sheet
       Object.entries(s.names || {}).forEach(([k, ref]) => {
         try {
           hf.addNamedExpression(k, ref, id);
@@ -229,8 +209,10 @@ export default function App() {
     const nextGrid = g.map((row, r) =>
       row.map((cell, c) => {
         let v = engine.getCellValue({ sheet: id, col: c, row: r });
-        if (v && typeof v === "object" && "type" in v) v = "#ARRAY";
-        if (v && typeof v === "object" && "value" in v) v = "#ERR";
+        if (v && typeof v === "object") {
+          if ("type" in v) v = "#ARRAY";
+          if ("value" in v) v = "#ERR";
+        }
         const t = cell.fmt.type;
         const num = Number(v);
         let display = v;
@@ -245,16 +227,18 @@ export default function App() {
         return { ...cell, value: display };
       })
     );
-    const newsheets = {
-      ...sheets,
-      sheets: sheets.sheets.map((s, i) =>
-        i === sheets.activeIndex ? { ...s, grid: nextGrid } : s
-      ),
-    };
-    setSheets(newsheets);
-    localStorage.setItem(STORAGE_KEY, serialize(newsheets));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engine]);
+    
+    setSheets(prevSheets => {
+      const newsheets = {
+        ...prevSheets,
+        sheets: prevSheets.sheets.map((s, i) =>
+          i === prevSheets.activeIndex ? { ...s, grid: nextGrid } : s
+        ),
+      };
+      localStorage.setItem(STORAGE_KEY, serialize(newsheets));
+      return newsheets;
+    });
+  }, [engine, sheets.activeIndex, active.grid]);
 
   const activeGrid = sheets.sheets[sheets.activeIndex].grid;
   const selectedCell = activeGrid[selection.r]?.[selection.c] ?? defaultCell();
