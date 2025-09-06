@@ -182,25 +182,47 @@ export default function App() {
   );
 
   /* -------- HyperFormula workbook -------- */
-  const engine = useMemo(() => {
-    const config = { licenseKey: "gpl-v3" };
-    const hf = HyperFormula.buildEmpty(config);
+const engine = useMemo(() => {
+  const config = { licenseKey: "gpl-v3" };
+  const hf = HyperFormula.buildEmpty(config);
 
-    sheets.sheets.forEach((s, idx) => {
+  sheets.sheets.forEach((s, idx) => {
+    try {
       const sheetName = s.name || `Sheet${idx + 1}`;
-      const id = hf.addSheet(sheetName);
-      const data = s.grid.map((row) => row.map((cell) => cell.input ?? ""));
-      hf.setSheetContent(id, data);
+      
+      // Get or create sheet with proper ID handling
+      let sheetId;
+      if (idx === 0) {
+        // For the first sheet, use the default sheet that already exists
+        hf.renameSheet(0, sheetName);
+        sheetId = 0;
+      } else {
+        // For additional sheets, add them properly
+        sheetId = hf.addSheet(sheetName);
+      }
+      
+      // Set sheet content with proper data formatting
+      const data = s.grid.map((row) => 
+        row.map((cell) => cell.input || "")
+      );
+      
+      hf.setSheetContent(sheetId, data);
 
+      // Add named expressions
       Object.entries(s.names || {}).forEach(([k, ref]) => {
         try {
-          hf.addNamedExpression(k, ref, id);
-        } catch {}
+          hf.addNamedExpression(k, ref, sheetId);
+        } catch (error) {
+          console.warn(`Could not add named expression ${k}:`, error);
+        }
       });
-    });
+    } catch (error) {
+      console.error(`Error processing sheet ${idx}:`, error);
+    }
+  });
 
-    return hf;
-  }, [sheets]);
+  return hf;
+}, [sheets]);
 
   /* -------- Recompute display values for active sheet -------- */
   useEffect(() => {
