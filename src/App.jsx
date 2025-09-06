@@ -192,21 +192,25 @@ export default function App() {
 
   /* -------- HyperFormula workbook -------- */
   const engine = useMemo(() => {
-    const config = { licenseKey: "gpl-v3" };
-    const hf = HyperFormula.buildEmpty(config);
-    sheets.sheets.forEach((s, idx) => {
-      const id =
-        idx === 0 ? hf.addSheet("Sheet1") : hf.addSheet(s.name || `Sheet${idx + 1}`);
-      const data = s.grid.map((row) => row.map((cell) => cell.input ?? ""));
-      hf.setSheetContent(id, data);
-      Object.entries(s.names || {}).forEach(([k, ref]) => {
-        try {
-          hf.addNamedExpression(k, ref, id);
-        } catch {}
-      });
+  const config = { licenseKey: "gpl-v3" };
+  const hf = HyperFormula.buildEmpty(config);
+
+  sheets.sheets.forEach((s, idx) => {
+    const sheetName = s.name || `Sheet${idx + 1}`;
+    // Create or reuse sheet
+    const id = idx === 0 ? hf.addSheet(sheetName, 0) : hf.addSheet(sheetName);
+    const data = s.grid.map((row) => row.map((cell) => cell.input ?? ""));
+    hf.setSheetContent(id, data);
+
+    Object.entries(s.names || {}).forEach(([k, ref]) => {
+      try {
+        hf.addNamedExpression(k, ref, id);
+      } catch {}
     });
-    return hf;
-  }, [sheets]);
+  });
+
+  return hf;
+}, [sheets]);
 
   /* -------- Recompute display values for active sheet -------- */
   useEffect(() => {
