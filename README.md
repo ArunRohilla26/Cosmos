@@ -1,0 +1,1 @@
+# Mini Excel App\n\nReact + Vite + Tailwind + HyperFormula. Deployed with GitHub Pages.
