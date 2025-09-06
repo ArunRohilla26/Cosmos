@@ -217,12 +217,17 @@ export default function App(){
 
   // CSV import/export for active sheet
   const exportCSV = () => {
-    const rows = activeGrid.map((row)=> row.map((c)=> String(c.input ?? "").replaceAll('"','""')));
-    const csv = rows.map((r)=> r.map((x)=>`"${x}"`).join(',')).join('
-');
-    const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${active.name||'sheet'}.csv`; a.click();
-  };
+  const rows = activeGrid.map(row =>
+    row.map(c => String(c.input ?? '').replaceAll('"', '""'))
+  );
+  const csv = rows.map(r => r.map(x => `"${x}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${active.name || 'sheet'}.csv`;
+  a.click();
+};
+
   const importCSV = async (file) => {
     if (!file) return;
     const text = await file.text();
