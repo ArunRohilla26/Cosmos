@@ -192,25 +192,35 @@ export default function App() {
 
   /* -------- HyperFormula workbook -------- */
   const engine = useMemo(() => {
-  const config = { licenseKey: "gpl-v3" };
-  const hf = HyperFormula.buildEmpty(config);
+    const hf = HyperFormula.buildEmpty({ licenseKey: "gpl-v3" });
 
-  sheets.sheets.forEach((s, idx) => {
-    const sheetName = s.name || `Sheet${idx + 1}`;
-    // Create or reuse sheet
-    const id = idx === 0 ? hf.addSheet(sheetName, 0) : hf.addSheet(sheetName);
-    const data = s.grid.map((row) => row.map((cell) => cell.input ?? ""));
-    hf.setSheetContent(id, data);
+    sheets.sheets.forEach((s, idx) => {
+      const sheetName = s.name || `Sheet${idx + 1}`;
 
-    Object.entries(s.names || {}).forEach(([k, ref]) => {
+      // Find an existing sheet by name, otherwise create one.
+      let id;
       try {
-        hf.addNamedExpression(k, ref, id);
-      } catch {}
-    });
-  });
+        id = hf.getSheetId(sheetName);
+      } catch {
+        id = undefined;
+      }
+      if (typeof id !== "number" || id < 0) {
+        id = hf.addSheet(sheetName); // returns numeric sheetId
+      }
 
-  return hf;
-}, [sheets]);
+      const data = s.grid.map((row) => row.map((cell) => cell.input ?? ""));
+      hf.setSheetContent(id, data);
+
+      // Named expressions scoped to the sheet
+      Object.entries(s.names || {}).forEach(([k, ref]) => {
+        try {
+          hf.addNamedExpression(k, ref, id);
+        } catch {}
+      });
+    });
+
+    return hf;
+  }, [sheets]);
 
   /* -------- Recompute display values for active sheet -------- */
   useEffect(() => {
